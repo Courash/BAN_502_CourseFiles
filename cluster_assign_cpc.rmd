@@ -1,0 +1,255 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+## ClusteringAssign 
+## Carl Coursen - BAN 502
+
+
+Libraries  
+```{r, include = FALSE}
+library(tidyverse)
+library(tidymodels)
+#library(esquisse)
+#library(cluster) #algorithms for clustering
+#library(factoextra) #visualization
+```
+
+
+Read in data  
+```{r}
+trucks = read_csv("trucks.csv")
+#str(trucks)
+#summary(trucks)
+```
+
+
+
+Task 1: Plot the relationship between Distance and Speeding. Describe this relationship. Does there appear
+to be any natural clustering of drivers?
+
+```{r}
+plot(trucks$Distance, trucks$Speeding, xlab='Avg. Mileage Driven daily', ylab='% Driving at least 5 mph >= speed limit', 
+     main='Driving Distance vs. Speeding')
+
+#esquisser() 
+#table(trucks$Distance, trucks$Speeding)
+#library(ggplot2)
+
+ggplot(trucks) +
+ aes(x = Distance, y = Speeding, colour = Speeding, size = Speeding) +
+ geom_point(shape = "circle") +
+ scale_color_gradient() +
+ labs(title = "Distance & Speeding") +
+ theme_bw()
+
+```
+
+Task 1 answer:
+The data appears to be showing a few patterns, for example four unique groups emerge two among both short & long distance. Overall, it does appear that both distance groups have a split at 25% of drivers are speed. A large group but not the significant cluster of drivers, appear to spend 25%% or more of their driving distance speeding.Also, that the long distance drivers are most likely to speed 100% of the driving distance.
+
+
+
+
+
+
+
+Task 2: As we did in the second clustering example, create a new data frame called “trucks_cleaned” that
+contains the scaled and centered variables. Two notes: 1) The “predictor” variables in the recipe are “Distance”and “Speeding” and 2) There is no need to create dummy variables as there are no categorical variables in the data.
+
+```{r}
+kmeans_recipe = recipe(~ Distance + Speeding, trucks) 
+
+truck_dummy = kmeans_recipe %>%
+  step_scale(all_numeric()) %>%
+  step_center(all_numeric()) 
+
+truck_dummy = prep(truck_dummy, trucks)
+trucks_cleaned = bake(truck_dummy, trucks)
+```
+
+
+
+Task 2 answer: below trucks_cleaned is now a dataframe, which contains both the scaled and centered variables.
+```{r}
+summary(trucks_cleaned)
+summary(trucks)
+```
+
+
+
+Task 3 Use k-Means clustering with two clusters (k=2) to cluster the “trucks_cleaned” data frame. Use a
+random number seed of 64. Use augment to add the resulting clusters object to the the “trucks” data frame.
+Design an appropriate visualization to visualize the clusters. Comment on the clusters.
+
+
+```{r}
+set.seed(64)
+clusts = 
+  tibble(k = 2) %>%
+  mutate(
+    kclust = map(k, ~kmeans(trucks_cleaned, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, trucks_cleaned)
+  )
+
+clusts
+```
+
+
+
+```{r}
+clusters = 
+  clusts %>%
+  unnest(cols = c(tidied))
+
+assignments = 
+  clusts %>% 
+  unnest(cols = c(augmented))
+
+clusterings = 
+  clusts %>%
+  unnest(cols = c(glanced))
+```
+
+
+
+
+```{r}
+p1 = 
+  ggplot(assignments, aes(x = Distance, y = Speeding)) +
+  geom_point(aes(color = .cluster), alpha = 0.8) + 
+  facet_wrap(~ k)
+p1
+```
+
+Task 3 Answer:
+These two clusters appear to show the two main distance groups described earlier, that actually split into two additional groups related to speeding within distnce. The first cluster is short distance drivers, which is split on drivers speeding less than the mean or 0, and another group of these drivers speeding much more than the mean value of 0. The second cluster are the long distance drivers, which is split in a similar way drivers speeding less than the 0 mean or fairly close to the mean and another group of these drivers speeding much more than the mean.
+
+
+
+
+
+
+Task 4: Create a visualization to show how the cluster appear from values of k from 1 to 8. Use a random
+number seed of 412. Which value of k appears to be most appropriate for this data?
+
+```{r}
+set.seed(412)
+clusts = 
+  tibble(k = 1:8) %>%
+  mutate(
+    kclust = map(k, ~kmeans(trucks_cleaned, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, trucks_cleaned)
+  )
+
+clusts
+```
+
+
+
+```{r}
+clusters = 
+  clusts %>%
+  unnest(cols = c(tidied))
+
+assignments = 
+  clusts %>% 
+  unnest(cols = c(augmented))
+
+clusterings = 
+  clusts %>%
+  unnest(cols = c(glanced))
+```
+
+
+
+
+```{r}
+p1 = 
+  ggplot(assignments, aes(x = Distance, y = Speeding)) +
+  geom_point(aes(color = .cluster), alpha = 0.8) + 
+  facet_wrap(~ k)
+p1
+```
+
+
+Task 4 Answer  - Based on the visualization above I believe facet of k = 4 appears to be most appropriate for this data. In my opinion the visual above categorizes the four main clusters of things within this data set. The short distance drivers fall into two groups and the long distance drivers also fall into two other groups. Overall, this logically fits the data into 4 main unique clusters.
+
+
+
+
+
+Task 5: Create a plot of k versus within cluster sum of squares. Hint: We did this in the first clustering
+lecture. Which value of k appears to be best?
+
+```{r}
+ggplot(clusterings, aes(k, tot.withinss)) +
+  geom_line() +
+  geom_point()
+```
+
+
+
+Task 5 Answer:  The elbow point bend in this graph appears to be at k = 4. We start to see diminishing returns on the compactness of the cluster at k = 4.
+
+
+
+
+
+Task 6: Repeat Task 3 for the number of clusters that you identified in Task 5. Use the same random number
+seed as in Task 3. Don’t forget to include your visualization. Comment on the resulting clusters.
+
+
+
+```{r}
+set.seed(64)
+clusts = 
+  tibble(k = 4) %>%
+  mutate(
+    kclust = map(k, ~kmeans(trucks_cleaned, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, trucks_cleaned)
+  )
+
+clusts
+```
+
+
+```{r}
+clusters = 
+  clusts %>%
+  unnest(cols = c(tidied))
+
+assignments = 
+  clusts %>% 
+  unnest(cols = c(augmented))
+
+clusterings = 
+  clusts %>%
+  unnest(cols = c(glanced))
+```
+
+
+
+
+```{r}
+p1 = 
+  ggplot(assignments, aes(x = Distance, y = Speeding)) +
+  geom_point(aes(color = .cluster), alpha = 0.8) + 
+  facet_wrap(~ k)
+p1
+```
+
+
+Task 6 Answer: The resulting cluster appear to follow the patterns identified early on, but now they are much more well defined across the dataset. Firstly the short and long distance groups are apparent. Secondly, the sub groups within each section are also very clear. Short distance is split into two main groups with marks under or close to the mean and marks well above the mean in terms of speeding. The Long Distance group is split into two additional groups as one near or below the mean mark for speeding and a second group well above the mean mark for speeding. The long distance cluster is again obviously the cluster with the most speed violators among the total dataset.
+
+
+
+
+
